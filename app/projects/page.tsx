@@ -93,12 +93,42 @@ export default function ProjectsPage() {
     alert('Snippet copied to clipboard!');
   };
 
-  const verifySnippet = async (projectId: string, domain: string, token: string) => {
+  const verifySnippet = async (projectId: string, domain: string, token: string, clientSide: boolean = false) => {
     if (!domain) {
       alert('Please enter a domain to verify');
       return;
     }
 
+    // Client-side verification: open in new tab with instructions
+    if (clientSide) {
+      let targetUrl = domain;
+      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+        targetUrl = 'https://' + targetUrl;
+      }
+      
+      // Open the website in a new tab
+      window.open(targetUrl, '_blank');
+      
+      // Show instructions for manual verification
+      setVerificationResults({
+        ...verificationResults,
+        [projectId]: {
+          verified: null, // null means "check manually"
+          url: targetUrl,
+          method: 'manual',
+          instructions: `Website opened in new tab. To verify:
+1. Open browser DevTools (F12)
+2. Go to Console tab
+3. Type: window.PIXELPULSE_TOKEN
+4. It should show: "${token}"
+5. Or check Sources/Network tab for pixelpulse.js`,
+          expectedToken: token,
+        },
+      });
+      return;
+    }
+
+    // Server-side verification
     setVerifying({ ...verifying, [projectId]: true });
     setVerificationResults({ ...verificationResults, [projectId]: null });
 
@@ -112,6 +142,7 @@ export default function ProjectsPage() {
           ...data,
           expectedToken: token,
           tokenMatches: data.token === token,
+          method: 'server-side',
         },
       });
     } catch (error: any) {
@@ -120,6 +151,7 @@ export default function ProjectsPage() {
         [projectId]: {
           verified: false,
           error: error.message || 'Failed to verify',
+          method: 'server-side',
         },
       });
     } finally {
@@ -387,7 +419,7 @@ export default function ProjectsPage() {
                           Verify Snippet Installation
                         </label>
                       </div>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'stretch' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'stretch', flexWrap: 'wrap' }}>
                         <input
                           type="text"
                           value={verifyingUrls[project.id] || ''}
@@ -395,6 +427,7 @@ export default function ProjectsPage() {
                           placeholder={project.domain || "example.com or https://example.com"}
                           style={{
                             flex: 1,
+                            minWidth: '200px',
                             padding: '0.75rem',
                             border: '1px solid #93c5fd',
                             borderRadius: '6px',
@@ -403,7 +436,7 @@ export default function ProjectsPage() {
                           }}
                         />
                         <button
-                          onClick={() => verifySnippet(project.id, verifyingUrls[project.id] || project.domain || '', project.token)}
+                          onClick={() => verifySnippet(project.id, verifyingUrls[project.id] || project.domain || '', project.token, false)}
                           disabled={verifying[project.id]}
                           style={{
                             padding: '0.75rem 1.5rem',
@@ -418,21 +451,44 @@ export default function ProjectsPage() {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {verifying[project.id] ? 'Checking...' : 'Verify'}
+                          {verifying[project.id] ? 'Checking...' : 'Verify (Server)'}
                         </button>
+                        <button
+                          onClick={() => verifySnippet(project.id, verifyingUrls[project.id] || project.domain || '', project.token, true)}
+                          style={{
+                            padding: '0.75rem 1.5rem',
+                            background: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Verify (Browser)
+                        </button>
+                      </div>
+                      <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#6b7280' }}>
+                        <strong>Server:</strong> Fast but may be blocked by CORS. <strong>Browser:</strong> Opens page in popup to check directly.
                       </div>
                       {verificationResults[project.id] && (
                         <div
                           style={{
                             marginTop: '1rem',
                             padding: '0.75rem',
-                            background: verificationResults[project.id].verified ? '#d1fae5' : '#fee2e2',
-                            border: `1px solid ${verificationResults[project.id].verified ? '#a7f3d0' : '#fecaca'}`,
+                            background: verificationResults[project.id].verified === true ? '#d1fae5' : 
+                                       verificationResults[project.id].verified === null ? '#fef3c7' : '#fee2e2',
+                            border: `1px solid ${
+                              verificationResults[project.id].verified === true ? '#a7f3d0' : 
+                              verificationResults[project.id].verified === null ? '#fbbf24' : '#fecaca'
+                            }`,
                             borderRadius: '6px',
                             fontSize: '0.875rem',
                           }}
                         >
-                          {verificationResults[project.id].verified ? (
+                          {verificationResults[project.id].verified === true ? (
                             <div>
                               <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>
                                 ✓ Snippet Found
@@ -447,6 +503,22 @@ export default function ProjectsPage() {
                                   )}
                                 </div>
                               )}
+                              {verificationResults[project.id].method && (
+                                <div style={{ color: '#047857', marginTop: '0.25rem', fontSize: '0.7rem' }}>
+                                  Verified via: {verificationResults[project.id].method}
+                                </div>
+                              )}
+                            </div>
+                          ) : verificationResults[project.id].verified === null ? (
+                            <div>
+                              <div style={{ fontWeight: 600, color: '#92400e', marginBottom: '0.5rem' }}>
+                                🔍 Manual Verification Required
+                              </div>
+                              {verificationResults[project.id].instructions && (
+                                <div style={{ color: '#78350f', marginTop: '0.25rem', whiteSpace: 'pre-line', lineHeight: '1.6' }}>
+                                  {verificationResults[project.id].instructions}
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div>
@@ -458,6 +530,19 @@ export default function ProjectsPage() {
                                   {verificationResults[project.id].error}
                                 </div>
                               )}
+                              {verificationResults[project.id].suggestion && (
+                                <div style={{ color: '#1e40af', marginTop: '0.5rem', padding: '0.5rem', background: '#dbeafe', borderRadius: '4px' }}>
+                                  💡 {verificationResults[project.id].suggestion}
+                                </div>
+                              )}
+                              <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#fef3c7', borderRadius: '4px', fontSize: '0.8rem', lineHeight: '1.6' }}>
+                                <strong>Manual Check:</strong><br/>
+                                1. Open the website<br/>
+                                2. Press F12 (DevTools)<br/>
+                                3. Go to Console tab<br/>
+                                4. Type: <code style={{ background: '#fff', padding: '0.2rem 0.4rem', borderRadius: '3px', fontFamily: 'monospace' }}>window.PIXELPULSE_TOKEN</code><br/>
+                                5. It should show: <code style={{ background: '#fff', padding: '0.2rem 0.4rem', borderRadius: '3px', fontFamily: 'monospace' }}>"{project.token}"</code>
+                              </div>
                             </div>
                           )}
                         </div>
