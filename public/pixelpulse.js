@@ -24,7 +24,7 @@
     }
   }
   // Final fallback (shouldn't be needed if script is loaded correctly)
-  if (!endpoint || endpoint === 'https://yourapp.com/api/pp') {
+  if (!endpoint || endpoint === 'https://inkpulse-liard.vercel.app/api/pp') {
     endpoint = window.location.origin + '/api/pp';
   }
 
