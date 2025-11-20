@@ -41,15 +41,22 @@ export async function POST(req: NextRequest) {
     
     // Check if payload has a project token
     if (payload.token) {
-      const { data: project } = await supabase
+      const { data: project, error: projectError } = await supabase
         .from('pixel_projects')
         .select('id, user_id')
         .eq('token', payload.token)
         .single();
       
+      if (projectError) {
+        console.error('Project lookup error:', projectError);
+      }
+      
       if (project) {
         projectId = project.id;
         userId = project.user_id;
+        console.log(`Event received for project ${projectId} (token: ${payload.token})`);
+      } else {
+        console.warn(`No project found for token: ${payload.token}`);
       }
     } else {
       // Try to get user from cookie (for test page)
@@ -86,19 +93,24 @@ export async function POST(req: NextRequest) {
 
     // Insert event into database
     // If no project_id or user_id, event will be orphaned (shouldn't happen in production)
-    const { error } = await supabase
+    const eventData = {
+      type: payload.t,
+      props: payload.p || {},
+      url: payload.url || '',
+      session: payload.session || '',
+      page: payload.page || '',
+      ts: payload.ts,
+      project_id: projectId,
+      user_id: userId,
+      created_at: new Date(payload.ts).toISOString()
+    };
+
+    console.log('Inserting event:', { type: payload.t, project_id: projectId, user_id: userId, url: payload.url });
+
+    const { error, data } = await supabase
       .from('pixel_events')
-      .insert({
-        type: payload.t,
-        props: payload.p || {},
-        url: payload.url || '',
-        session: payload.session || '',
-        page: payload.page || '',
-        ts: payload.ts,
-        project_id: projectId,
-        user_id: userId,
-        created_at: new Date(payload.ts).toISOString()
-      });
+      .insert(eventData)
+      .select();
 
     if (error) {
       console.error('Supabase insert error:', error);

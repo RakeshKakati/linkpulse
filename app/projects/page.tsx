@@ -85,8 +85,10 @@ export default function ProjectsPage() {
   };
 
   const copySnippet = (token: string) => {
+    const endpoint = `${window.location.origin}/api/pp`;
     const snippet = `<script>
   window.PIXELPULSE_TOKEN = "${token}";
+  window.PIXELPULSE_ENDPOINT = "${endpoint}";
 </script>
 <script src="${window.location.origin}/pixelpulse.js"></script>`;
     navigator.clipboard.writeText(snippet);

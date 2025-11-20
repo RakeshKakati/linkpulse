@@ -5,7 +5,29 @@
 (function() {
   'use strict';
 
-  const endpoint = window.PIXELPULSE_ENDPOINT || "https://yourapp.com/api/pp";
+  // Auto-detect endpoint from script src, or use PIXELPULSE_ENDPOINT, or fallback
+  let endpoint = window.PIXELPULSE_ENDPOINT;
+  if (!endpoint) {
+    // Try to find this script tag and extract the origin
+    const scripts = document.getElementsByTagName('script');
+    for (let i = 0; i < scripts.length; i++) {
+      const src = scripts[i].src;
+      if (src && src.includes('pixelpulse.js')) {
+        try {
+          const url = new URL(src);
+          endpoint = url.origin + '/api/pp';
+          break;
+        } catch (e) {
+          // Invalid URL, continue
+        }
+      }
+    }
+  }
+  // Final fallback (shouldn't be needed if script is loaded correctly)
+  if (!endpoint || endpoint === 'https://yourapp.com/api/pp') {
+    endpoint = window.location.origin + '/api/pp';
+  }
+
   const projectToken = window.PIXELPULSE_TOKEN || null;
   const session = Math.random().toString(36).slice(2) + Date.now().toString(36);
   const pageId = Math.random().toString(36).slice(2);
