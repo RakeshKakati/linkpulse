@@ -21,6 +21,9 @@ export default function ProjectsPage() {
   const [projectDomain, setProjectDomain] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+  const [verifyingUrls, setVerifyingUrls] = useState<Record<string, string>>({});
+  const [verificationResults, setVerificationResults] = useState<Record<string, any>>({});
+  const [verifying, setVerifying] = useState<Record<string, boolean>>({});
   const supabase = createSupabaseClient();
   const router = useRouter();
 
@@ -88,6 +91,40 @@ export default function ProjectsPage() {
 <script src="${window.location.origin}/pixelpulse.js"></script>`;
     navigator.clipboard.writeText(snippet);
     alert('Snippet copied to clipboard!');
+  };
+
+  const verifySnippet = async (projectId: string, domain: string, token: string) => {
+    if (!domain) {
+      alert('Please enter a domain to verify');
+      return;
+    }
+
+    setVerifying({ ...verifying, [projectId]: true });
+    setVerificationResults({ ...verificationResults, [projectId]: null });
+
+    try {
+      const response = await fetch(`/api/verify?url=${encodeURIComponent(domain)}`);
+      const data = await response.json();
+
+      setVerificationResults({
+        ...verificationResults,
+        [projectId]: {
+          ...data,
+          expectedToken: token,
+          tokenMatches: data.token === token,
+        },
+      });
+    } catch (error: any) {
+      setVerificationResults({
+        ...verificationResults,
+        [projectId]: {
+          verified: false,
+          error: error.message || 'Failed to verify',
+        },
+      });
+    } finally {
+      setVerifying({ ...verifying, [projectId]: false });
+    }
   };
 
   if (loading) {
@@ -297,6 +334,7 @@ export default function ProjectsPage() {
                         alignItems: 'center',
                         gap: '0.5rem',
                         marginTop: '1rem',
+                        flexWrap: 'wrap',
                       }}
                     >
                       <code
@@ -323,6 +361,107 @@ export default function ProjectsPage() {
                       >
                         Copy Snippet
                       </button>
+                    </div>
+                    
+                    {/* Verify Section - Always Visible */}
+                    <div
+                      style={{
+                        marginTop: '1.5rem',
+                        padding: '1.25rem',
+                        background: '#f0f9ff',
+                        borderRadius: '8px',
+                        border: '2px solid #3b82f6',
+                        boxShadow: '0 2px 4px rgba(59, 130, 246, 0.1)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '1.25rem' }}>🔍</span>
+                        <label
+                          style={{
+                            display: 'block',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            color: '#1e40af',
+                          }}
+                        >
+                          Verify Snippet Installation
+                        </label>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'stretch' }}>
+                        <input
+                          type="text"
+                          value={verifyingUrls[project.id] || ''}
+                          onChange={(e) => setVerifyingUrls({ ...verifyingUrls, [project.id]: e.target.value })}
+                          placeholder={project.domain || "example.com or https://example.com"}
+                          style={{
+                            flex: 1,
+                            padding: '0.75rem',
+                            border: '1px solid #93c5fd',
+                            borderRadius: '6px',
+                            fontSize: '0.875rem',
+                            background: 'white',
+                          }}
+                        />
+                        <button
+                          onClick={() => verifySnippet(project.id, verifyingUrls[project.id] || project.domain || '', project.token)}
+                          disabled={verifying[project.id]}
+                          style={{
+                            padding: '0.75rem 1.5rem',
+                            background: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            cursor: verifying[project.id] ? 'not-allowed' : 'pointer',
+                            opacity: verifying[project.id] ? 0.6 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {verifying[project.id] ? 'Checking...' : 'Verify'}
+                        </button>
+                      </div>
+                      {verificationResults[project.id] && (
+                        <div
+                          style={{
+                            marginTop: '1rem',
+                            padding: '0.75rem',
+                            background: verificationResults[project.id].verified ? '#d1fae5' : '#fee2e2',
+                            border: `1px solid ${verificationResults[project.id].verified ? '#a7f3d0' : '#fecaca'}`,
+                            borderRadius: '6px',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          {verificationResults[project.id].verified ? (
+                            <div>
+                              <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>
+                                ✓ Snippet Found
+                              </div>
+                              {verificationResults[project.id].token && (
+                                <div style={{ color: '#047857', marginTop: '0.25rem' }}>
+                                  Token: {verificationResults[project.id].token}
+                                  {verificationResults[project.id].tokenMatches ? (
+                                    <span style={{ marginLeft: '0.5rem', fontWeight: 600 }}>✓ Matches</span>
+                                  ) : (
+                                    <span style={{ marginLeft: '0.5rem', color: '#dc2626' }}>✗ Doesn't match</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: '0.25rem' }}>
+                                ✗ Snippet Not Found
+                              </div>
+                              {verificationResults[project.id].error && (
+                                <div style={{ color: '#991b1b', marginTop: '0.25rem' }}>
+                                  {verificationResults[project.id].error}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
